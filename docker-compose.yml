@@ -1,18 +1,50 @@
 services:
+  db:
+    image: mariadb:10.11
+    container_name: mi-db-dev
+    restart: unless-stopped
+    environment:
+      MARIADB_ROOT_PASSWORD: ${DB_ROOT_PASSWORD:?Define DB_ROOT_PASSWORD en .env}
+      MARIADB_DATABASE: ${DB_NAME:-db-crabook}
+      MARIADB_USER: ${DB_USER:-crabook}
+      MARIADB_PASSWORD: ${DB_PASSWORD:?Define DB_PASSWORD en .env}
+    volumes:
+      - db_data:/var/lib/mysql
+      - ./server/db-crabook.sql:/docker-entrypoint-initdb.d/01-db-crabook.sql:ro
+    healthcheck:
+      test: ["CMD", "healthcheck.sh", "--connect", "--innodb_initialized"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
   backend:
     build: ./server
     container_name: mi-backend-dev
+    restart: unless-stopped
+    command: sh -c "node crear-admin.js && npm start"
+    devices:
+      - "/dev/usb/lp2:/dev/usb/lp2"
     ports:
       - "8085:8085"
+      - "3306:3036"
+    env_file:
+      - .env
+      - ./server/.env
+    environment:
+      NODE_ENV: development
+      DB_HOST: db
+      DB_PORT: 3306
     volumes:
       - ./server:/app
       - /app/node_modules
-    environment:
-      - NODE_ENV=development
+    depends_on:
+      db:
+        condition: service_healthy
 
   frontend:
     build: ./client
     container_name: mi-frontend-dev
+    restart: unless-stopped
     ports:
       - "5173:5173"
     volumes:
@@ -20,3 +52,6 @@ services:
       - /app/node_modules
     depends_on:
       - backend
+
+volumes:
+  db_data:

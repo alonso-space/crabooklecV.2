@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
-import { Link, useNavigate } from 'react-router-dom'
+import { Link, useLocation, useNavigate } from 'react-router-dom'
 import { api, esAbortado } from '../api.js'
 import { aviso, confirmarEliminarLibro, devolverLibro, prestarLibro } from '../dialogos.js'
 import { Resaltar, textoContador } from '../utils.jsx'
@@ -9,6 +9,7 @@ import ModalLibro from '../components/ModalLibro.jsx'
 
 export default function Libros({ soloLectura = false }) {
     const navegar = useNavigate()
+    const { state: escaneo } = useLocation()
     const input = useRef(null)
     const [texto, setTexto] = useState('')       
     const [consulta, setConsulta] = useState('')  
@@ -18,6 +19,14 @@ export default function Libros({ soloLectura = false }) {
     const [activa, setActiva] = useState(null)
     const [libroAbierto, setLibroAbierto] = useState(null) 
     const recargar = () => setVersion(v => v + 1)
+
+    // Código leído con la pistola lectora (ver useEscaner.js): se busca de inmediato
+    useEffect(() => {
+        if (!escaneo?.codigo) return
+        setTexto(escaneo.codigo)
+        setConsulta(escaneo.codigo)
+        input.current?.focus()
+    }, [escaneo])
 
     useEffect(() => {
         const espera = setTimeout(() => setConsulta(texto.trim()), 250)

@@ -8,6 +8,7 @@ import Formulario from './components/Formulario.jsx'
 import ImprimirCatalogo from './pages/ImprimirCatalogo.jsx'
 import Atrasados from './pages/Atrasados.jsx'
 import { useAtrasados } from './useAtrasados.js'
+import { useEscaner } from './useEscaner.js'
 import { useSesion } from './context/Sesion.jsx'
 import { editarLibro, editarUsuario, registrarLibro, registrarUsuario } from './formularios.js'
 
@@ -18,6 +19,7 @@ export default function App() {
     const { usuario, cargando, esAdmin, salir } = useSesion()
     const enlaces = esAdmin ? enlacesAdmin : enlacesConsulta
     const atrasados = useAtrasados(esAdmin)
+    useEscaner(Boolean(usuario))
     const ruta = useLocation().pathname.toLowerCase()
     const actual = enlaces
         .filter(([href]) => ruta.startsWith(href))

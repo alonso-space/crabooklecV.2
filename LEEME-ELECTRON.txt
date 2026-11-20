@@ -1,0 +1,16 @@
+CRAbook - Electron
+==================
+1. Copia el contenido de esta carpeta sobre la raiz de tu proyecto (crabooklecV.2), aceptando reemplazar:
+     package.json            (NUEVO, en la raiz)
+     electron/main.js        (NUEVO)
+     server/app.js           (cambia solo la linea del listen)
+     server/src/impresora/boleta.js   (agrega IMPRESORA_TIPO=usb)
+     client/src/useEscaner.js         (NUEVO)
+     client/src/App.jsx, client/src/pages/Libros.jsx   (soporte pistola lectora)
+2. En la raiz, en cmd:
+     npm run instalar
+     npm run dist
+3. El instalador queda en dist\  (CRAbook Setup 2.0.0.exe y version portable).
+4. Primera vez en cada PC: abre CRAbook, se crea %APPDATA%\CRAbook\.env, editalo
+   (DB_HOST = IP del servidor) y vuelve a abrir.
+Probar sin instalador:  npm start
