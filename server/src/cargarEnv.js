@@ -2,7 +2,7 @@ import fs from 'node:fs'
 import { parseEnv } from 'node:util'
 import { fileURLToPath } from 'node:url'
 
-const ruta = fileURLToPath(new URL('../.env', import.meta.url))
+const ruta = fileURLToPath(new URL('../../.env', import.meta.url))
 
 if (!fs.existsSync(ruta)) {
     console.log(`[.env] No se encontró el archivo: ${ruta}`)
