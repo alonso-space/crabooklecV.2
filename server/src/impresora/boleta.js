@@ -102,6 +102,7 @@ function envolver(texto, ancho = COLUMNAS) {
     return lineas
 }
 
+
 function codigoBarras(valor) {
     const codigo = String(valor ?? '').trim()
 
@@ -110,32 +111,42 @@ function codigoBarras(valor) {
     }
 
     if (!/^[\x20-\x7E]+$/.test(codigo)) {
-        throw new Error('El código de barras contiene caracteres no válidos para CODE128.')
+        throw new Error('El código contiene caracteres no válidos para CODE128.')
     }
 
-    const bytes = Buffer.from(codigo, 'ascii')
+    const contenido = Buffer.from('{B' + codigo, 'ascii')
 
-    if (bytes.length > 250) {
+    if (contenido.length > 250) {
         throw new Error('El código de barras es demasiado largo.')
     }
 
     const partes = []
 
+    // Centrar código de barras
     partes.push(Buffer.from([ESC, 0x61, 1]))
+
+    // Altura
     partes.push(Buffer.from([GS, 0x68, 80]))
+
+    // Ancho: 2
     partes.push(Buffer.from([GS, 0x77, 2]))
+
+    // Mostrar números debajo
     partes.push(Buffer.from([GS, 0x48, 2]))
 
-    partes.push(Buffer.from([
-        GS, 0x6b, 0x49, bytes.length
-    ]))
-
-    partes.push(bytes)
+    // CODE128 B: misma secuencia de la prueba exitosa
+    partes.push(Buffer.from([GS, 0x6b, 0x49]))
     partes.push(Buffer.from([0x0a]))
+    partes.push(contenido)
+    partes.push(Buffer.from([0x0a]))
+
+    // Restaurar alineación
     partes.push(Buffer.from([ESC, 0x61, 0]))
 
     return Buffer.concat(partes)
 }
+
+
 
 export function armarBoleta(p) {
     console.log('FECHA RECIBIDA:', p.FECHA_ENTREGA)
@@ -308,6 +319,148 @@ async function enviarLocal(datos) {
     }
 }
 
+const RAW_PRINT_SCRIPT = `param([string]$Impresora, [string]$Archivo)
+$ErrorActionPreference = 'Stop'
+Add-Type -TypeDefinition @'
+using System;
+using System.Runtime.InteropServices;
+public class RawPrinter {
+    [StructLayout(LayoutKind.Sequential, CharSet = CharSet.Unicode)]
+    public struct DOCINFO {
+        [MarshalAs(UnmanagedType.LPWStr)] public string pDocName;
+        [MarshalAs(UnmanagedType.LPWStr)] public string pOutputFile;
+        [MarshalAs(UnmanagedType.LPWStr)] public string pDataType;
+    }
+    [DllImport("winspool.drv", EntryPoint = "OpenPrinterW", SetLastError = true, CharSet = CharSet.Unicode)]
+    static extern bool OpenPrinter(string name, out IntPtr h, IntPtr d);
+    [DllImport("winspool.drv", SetLastError = true)]
+    static extern bool ClosePrinter(IntPtr h);
+    [DllImport("winspool.drv", EntryPoint = "StartDocPrinterW", SetLastError = true, CharSet = CharSet.Unicode)]
+    static extern int StartDocPrinter(IntPtr h, int level, ref DOCINFO di);
+    [DllImport("winspool.drv", SetLastError = true)]
+    static extern bool EndDocPrinter(IntPtr h);
+    [DllImport("winspool.drv", SetLastError = true)]
+    static extern bool StartPagePrinter(IntPtr h);
+    [DllImport("winspool.drv", SetLastError = true)]
+    static extern bool EndPagePrinter(IntPtr h);
+    [DllImport("winspool.drv", SetLastError = true)]
+    static extern bool WritePrinter(IntPtr h, byte[] buf, int count, out int written);
+    public static void Send(string printer, byte[] data) {
+        IntPtr h;
+        if (!OpenPrinter(printer, out h, IntPtr.Zero))
+            throw new Exception("No se pudo abrir la impresora (error " + Marshal.GetLastWin32Error() + ").");
+        try {
+            DOCINFO di = new DOCINFO();
+            di.pDocName = "Boleta CRAbook";
+            di.pOutputFile = null;
+            di.pDataType = "RAW";
+            if (StartDocPrinter(h, 1, ref di) == 0)
+                throw new Exception("La impresora rechazo el documento (error " + Marshal.GetLastWin32Error() + ").");
+            try {
+                if (!StartPagePrinter(h))
+                    throw new Exception("No se pudo iniciar la pagina (error " + Marshal.GetLastWin32Error() + ").");
+                try {
+                    int escritos;
+                    if (!WritePrinter(h, data, data.Length, out escritos) || escritos != data.Length)
+                        throw new Exception("No se pudieron enviar todos los datos a la impresora.");
+                } finally { EndPagePrinter(h); }
+            } finally { EndDocPrinter(h); }
+        } finally { ClosePrinter(h); }
+    }
+}
+'@
+try {
+    [RawPrinter]::Send($Impresora, [System.IO.File]::ReadAllBytes($Archivo))
+} catch {
+    [Console]::Error.WriteLine($_.Exception.Message)
+    exit 1
+}
+`
+
+const POWERSHELL_ARGS = ['-NoProfile', '-NonInteractive', '-ExecutionPolicy', 'Bypass']
+const LOOKS_THERMAL = /PR-?100|POS|thermal|termic|receipt|ticket|recibo|boleta|58|80mm/i
+
+const run = (archivo, args, opciones = {}) => new Promise((resolve, reject) => {
+    execFile(archivo, args, { encoding: 'utf8', windowsHide: true, timeout: 20000, ...opciones }, (error, salida, stderr) => {
+        if (error) return reject(new Error((String(stderr).trim() || error.message)))
+        resolve(String(salida))
+    })
+})
+
+// Lista las impresoras instaladas en Windows con su puerto (USB001, USB002, IP_..., etc.)
+async function listPrinters() {
+    const salida = await run('powershell.exe', [
+        ...POWERSHELL_ARGS, '-Command',
+        '[Console]::OutputEncoding=[Text.Encoding]::UTF8; Get-CimInstance Win32_Printer | Select-Object Name,PortName | ConvertTo-Json -Compress'
+    ])
+    if (!salida.trim()) return []
+
+    const datos = JSON.parse(salida)
+    return (Array.isArray(datos) ? datos : [datos])
+        .filter(i => i && typeof i.Name === 'string' && i.Name.trim())
+        .map(i => ({ Name: i.Name.trim(), PortName: String(i.PortName ?? '').trim() }))
+}
+
+// Busca la impresora instalada en Windows. Si se especifica un nombre,
+// exige que coincida y que esté asociada a un puerto USB.
+export async function detectUsbPrinter() {
+    const lista = await listPrinters()
+    const nombreConfigurado = String(process.env.IMPRESORA_NOMBRE ?? '').trim()
+    const normalizar = valor => String(valor ?? '').trim().toLocaleLowerCase('es-CL')
+
+    if (nombreConfigurado) {
+        const buscado = normalizar(nombreConfigurado)
+        const match = lista.find(i => normalizar(i.Name) === buscado) ??
+            lista.find(i => normalizar(i.Name).includes(buscado))
+
+        if (!match) {
+            const instaladas = lista.map(i => `${i.Name} (puerto: ${i.PortName || 'desconocido'})`)
+            throw new Error(`No se encontró la impresora "${nombreConfigurado}". Impresoras detectadas por Windows: ${instaladas.join('; ') || 'ninguna'}. Copia el nombre exacto que aparece en Get-Printer.`)
+        }
+
+        if (!/^USB/i.test(match.PortName)) {
+            throw new Error(`La impresora "${match.Name}" está instalada en el puerto "${match.PortName || 'desconocido'}", no en un puerto USB. Revisa la conexión y el puerto en las propiedades de la impresora.`)
+        }
+
+        return match.Name
+    }
+
+    const usb = lista.filter(i => /^USB/i.test(i.PortName))
+    if (usb.length === 0) {
+        throw new Error(`Windows no detectó impresoras en puertos USB. Impresoras instaladas: ${lista.map(i => `${i.Name} (${i.PortName || 'sin puerto'})`).join('; ') || 'ninguna'}.`)
+    }
+    if (usb.length === 1) return usb[0].Name
+
+    const thermal = usb.filter(i => LOOKS_THERMAL.test(i.Name))
+    if (thermal.length === 1) return thermal[0].Name
+
+    throw new Error(`Hay varias impresoras USB (${usb.map(i => i.Name).join(', ')}). Escribe el nombre exacto de la impresora de boletas en IMPRESORA_NOMBRE.`)
+}
+
+async function sendUsb(datos) {
+    if (process.platform !== 'win32') {
+        throw new Error('IMPRESORA_TIPO=usb solo funciona en Windows.')
+    }
+
+    const impresora = await detectUsbPrinter()
+    const base = path.join(os.tmpdir(), `boleta-${Date.now()}`)
+    const binFile = `${base}.bin`
+    const psFile = `${base}.ps1`
+
+    await fs.writeFile(binFile, datos)
+    await fs.writeFile(psFile, '\uFEFF' + RAW_PRINT_SCRIPT, 'utf8')
+
+    try {
+        await run('powershell.exe', [...POWERSHELL_ARGS, '-File', psFile, '-Impresora', impresora, '-Archivo', binFile])
+    } catch (error) {
+        throw new Error(`No se pudo imprimir en "${impresora}". ${error.message}`)
+    } finally {
+        fs.unlink(binFile).catch(() => {})
+        fs.unlink(psFile).catch(() => {})
+    }
+}
+
+
 export async function imprimirBoleta(prestamo) {
     const tipo = process.env.IMPRESORA_TIPO
 
@@ -327,7 +480,11 @@ export async function imprimirBoleta(prestamo) {
         return enviarLocal(datos)
     }
 
+    if (tipo === 'usb') {
+        return sendUsb(datos)
+    }
+
     throw new Error(
-        'IMPRESORA_TIPO debe ser "red" o "local".'
+        'IMPRESORA_TIPO debe ser "usb", "red" o "local".'
     )
 }

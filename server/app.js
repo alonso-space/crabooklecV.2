@@ -24,4 +24,5 @@ if (fs.existsSync(path.join(dist, 'index.html'))) {
 }
 
 const puerto = process.env.PORT ?? 8085
-app.listen(puerto, () => { console.log(`Listen on port ${puerto}`) })
+// HOST lo define Electron (127.0.0.1); en Docker queda sin definir
+app.listen(puerto, process.env.HOST || undefined, () => { console.log(`Listen on port ${puerto}`) })

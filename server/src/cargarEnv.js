@@ -17,13 +17,21 @@ if (!fs.existsSync(ruta)) {
         // El Bloc de notas o PowerShell a veces guardan con BOM o en UTF-16: se leen igual
         const texto = (bytes[0] === 0xff && bytes[1] === 0xfe ? bytes.toString('utf16le') : bytes.toString('utf8'))
             .replace(/^\uFEFF/, '')
-        Object.assign(process.env, parseEnv(texto))
-        console.log(`[.env] Leído: ${ruta}`)
+        const valores = parseEnv(texto)
+
+        // Electron ya cargó %APPDATA%\CRAbook\.env antes de importar el servidor.
+        // El .env del proyecto solo completa variables que todavía no existen;
+        // nunca debe pisar la configuración específica de este equipo.
+        for (const [clave, valor] of Object.entries(valores)) {
+            if (process.env[clave] === undefined) process.env[clave] = valor
+        }
+
+        console.log(`[.env] Leído (sin sobrescribir variables existentes): ${ruta}`)
     } catch (error) {
         console.log(`[.env] No se pudo leer ${ruta}: ${error.message}`)
     }
 }
 
 console.log(process.env.IMPRESORA_TIPO
-    ? `[impresora] Tipo: ${process.env.IMPRESORA_TIPO}, destino: ${process.env.IMPRESORA_DESTINO ?? process.env.IMPRESORA_HOST ?? '(sin definir)'}`
+    ? `[impresora] Tipo: ${process.env.IMPRESORA_TIPO}, nombre: ${process.env.IMPRESORA_NOMBRE ?? '(sin definir)'}, destino: ${process.env.IMPRESORA_DESTINO ?? process.env.IMPRESORA_HOST ?? '(sin definir)'}`
     : '[impresora] Sin configurar (falta IMPRESORA_TIPO en el .env)')

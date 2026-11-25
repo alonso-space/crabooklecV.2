@@ -35,7 +35,10 @@
       "!**/*.md"
     ],
     "win": {
-      "target": ["nsis", "portable"],
+      "target": [
+        "nsis",
+        "portable"
+      ],
       "icon": "client/public/img/logo.png"
     },
     "nsis": {
@@ -43,5 +46,8 @@
       "perMachine": false,
       "createDesktopShortcut": true
     }
+  },
+  "allowScripts": {
+    "electron@33.2.0": true
   }
 }

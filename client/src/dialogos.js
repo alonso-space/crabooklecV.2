@@ -152,7 +152,7 @@ export async function prestarLibro(libro, irARegistrar) {
     }
 
     if (respuesta.impresion) {
-        await Aviso.fire({ icon: 'warning', title: 'Préstamo guardado, pero no se imprimió la boleta', text: respuesta.impresion })
+        await Aviso.fire({ icon: 'warning', title: 'Préstamo guardado, pero no se pudo enviar la boleta a la impresora', text: respuesta.impresion })
     } else {
         await Aviso.fire({
             icon: 'success',

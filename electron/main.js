@@ -19,7 +19,7 @@ DB_NAME=db-crabook
 
 # --- Impresora de boletas (térmica, USB) ---
 # usb = detecta sola la impresora conectada por USB
-# Si hay varias, escribe parte del nombre tal como sale en Windows (ej: PR100B)
+# Si hay varias, escribe el nombre tal como aparece en Get-Printer (ej: AON PR-100)
 IMPRESORA_TIPO=usb
 IMPRESORA_NOMBRE=
 IMPRESORA_CODEPAGE=2

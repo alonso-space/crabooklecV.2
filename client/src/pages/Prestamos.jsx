@@ -26,7 +26,7 @@ export default function Prestamos() {
         setImprimiendo(p.ID_PRESTAR)
         try {
             await api(`/prestamos/${p.ID_PRESTAR}/boleta`, { method: 'POST' })
-            exito('Boleta enviada a la impresora', 1500)
+            exito('Boleta enviada a la cola de impresión', 1500)
         } catch (e) {
             aviso('error', 'No se pudo imprimir', e.message)
         } finally {

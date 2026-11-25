@@ -4,7 +4,8 @@ CRAbook - Electron
      package.json            (NUEVO, en la raiz)
      electron/main.js        (NUEVO)
      server/app.js           (cambia solo la linea del listen)
-     server/src/impresora/boleta.js   (agrega IMPRESORA_TIPO=usb)
+     server/src/impresora/boleta.js   (impresión RAW USB en Windows y validación del nombre/puerto)
+     server/src/cargarEnv.js          (evita que el .env del proyecto sobrescriba el de Windows)
      client/src/useEscaner.js         (NUEVO)
      client/src/App.jsx, client/src/pages/Libros.jsx   (soporte pistola lectora)
 2. En la raiz, en cmd:
@@ -12,5 +13,6 @@ CRAbook - Electron
      npm run dist
 3. El instalador queda en dist\  (CRAbook Setup 2.0.0.exe y version portable).
 4. Primera vez en cada PC: abre CRAbook, se crea %APPDATA%\CRAbook\.env, editalo
-   (DB_HOST = IP del servidor) y vuelve a abrir.
+   (DB_HOST = IP del servidor; IMPRESORA_TIPO=usb; IMPRESORA_NOMBRE=AON PR-100) y vuelve a abrir.
+   El nombre debe coincidir con Get-Printer en PowerShell y usar un puerto USB (ej. USB001).
 Probar sin instalador:  npm start
